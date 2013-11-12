@@ -42,9 +42,33 @@ import Data.Maybe
 import Control.Monad (join)
 import Data.Function (on)
 import Debug.Trace
-import Niz
+--import Niz
 import Control.Exception 
+infixr 1 ?
+(?) True  x _ = x
+(?) False _ y = y
 
+notnull = not . null
+
+wschars = " \t\r\n"
+strip :: String -> String
+strip = lstrip . rstrip
+lstrip s = case s of
+                  [] -> []
+                  (x:xs) -> if elem x wschars
+                            then lstrip xs
+                            else s
+rstrip = reverse . lstrip . reverse
+
+bigrams :: [a] -> [(a,a)]
+bigrams (_:[]) = []
+bigrams x = zip x (tail x)
+
+-- map and then filter in one run, reduces complexity from 2n to n
+mapfilter :: (a -> b) -> (b -> Bool) -> [a] -> [b]
+mapfilter _ _ [] = []
+mapfilter m f (x:xs) = f result ? (result:(mapfilter m f xs)) $ (mapfilter m f xs)
+                 where result = m x
 
 -- Current version number
 pversion = "0.2.0"
