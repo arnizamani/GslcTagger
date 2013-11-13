@@ -1,6 +1,6 @@
 {-
     GslcTagger: Parts-of-speech tagger for GSLC corpus of spoken Swedish
-    Copyright (C) 2013  Abdul Rahim Nizamani
+    Copyright (C) 2013  Abdul Rahim Nizamani, University of Gothenburg
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module Main where
+
 import System.Directory
 import Prelude hiding (appendFile, readFile, writeFile)
 import System.IO.UTF8 (appendFile, readFile, writeFile,hGetContents)
@@ -27,29 +28,29 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.IntMap as IntMap
 import Data.IntMap (IntMap)
-import Data.Time
-import Control.Parallel
 import Control.Parallel.Strategies
 import Data.Char (isAlpha, isSpace, isDigit)
 import Text.ParserCombinators.ReadP hiding (count)
--- import qualified Data.Binary as B
 import System.Environment (getArgs, getProgName)
 import System.Time
---import Data.String.Utils (strip)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.Maybe
 import Control.Monad (join)
 import Data.Function (on)
-import Debug.Trace
---import Niz
 import Control.Exception 
+
+-- Current version number
+pversion = "0.2.1" -- modified 2013-11-13
+
+-- | ? instead of if..then..else
 infixr 1 ?
 (?) True  x _ = x
 (?) False _ y = y
 
 notnull = not . null
 
+-- | trims a string
 wschars = " \t\r\n"
 strip :: String -> String
 strip = lstrip . rstrip
@@ -70,13 +71,10 @@ mapfilter _ _ [] = []
 mapfilter m f (x:xs) = f result ? (result:(mapfilter m f xs)) $ (mapfilter m f xs)
                  where result = m x
 
--- Current version number
-pversion = "0.2.0"
-
 defaultTag = "noun"
 foreignTag = "uo"
 
-maxRules = 1000
+maxRules = 5000
 
 function x y = do
     text <- readFile x
@@ -98,42 +96,40 @@ mergetags xs =  map (\(x,y) -> [x,show y])
                 . sortBy (compare `on` fst) -- [(String,Integer)]
                 $ map (\[x,y] -> (x, (read y :: Integer))) xs
 
-tagmap = Map.fromList [
-                       ("uo","uo"),
-                       ("ab","adv"),
-                       ("an","noun"),
-                       ("jj","adj"),
-                       ("pc","adj"),
-                       ("ha","adv"),
-                       ("hs","adv"),
-                       ("pl","adv"),
-                       ("in","int"),
-                       ("kn","conj"),
-                       ("sn","conj"),
-                       ("nn","noun"),
-                       ("pm","noun"),
-                       ("rg","num"),
-                       ("ro","num"),
-                       ("vb","verb"),
-                       ("ie","prep"),
-                       ("pp","prep"),
-                       ("dt","pron"),
-                       ("hd","pron"),
-                       ("pn","pron"),
-                       ("ps","pron"),
-                       ("hp","pron"),
-                       ("adj","adj"),
-                       ("adv","adv"),
-                       ("fb","fb"),
-                       ("int","int"),
-                       ("conj","conj"),
-                       ("noun","noun"),
-                       ("num","num"),
-                       ("ocm","ocm"),
-                       ("pron","pron"),
-                       ("prep","prep"),
-                       ("verb","verb")
-                       ]
+tagmap = Map.fromList [("uo",   "uo"  ),
+                       ("ab",   "adv" ),
+                       ("an",   "noun"),
+                       ("jj",   "adj" ),
+                       ("pc",   "adj" ),
+                       ("ha",   "adv" ),
+                       ("hs",   "adv" ),
+                       ("pl",   "adv" ),
+                       ("in",   "int" ),
+                       ("kn",   "conj"),
+                       ("sn",   "conj"),
+                       ("nn",   "noun"),
+                       ("pm",   "noun"),
+                       ("rg",   "num" ),
+                       ("ro",   "num" ),
+                       ("vb",   "verb"),
+                       ("ie",   "conj"),
+                       ("pp",   "prep"),
+                       ("dt",   "pron"),
+                       ("hd",   "pron"),
+                       ("pn",   "pron"),
+                       ("ps",   "pron"),
+                       ("hp",   "pron"),
+                       ("adj",  "adj" ),
+                       ("adv",  "adv" ),
+                       ("fb",   "fb"  ),
+                       ("int",  "int" ),
+                       ("conj", "conj"),
+                       ("noun", "noun"),
+                       ("num",  "num" ),
+                       ("ocm",  "ocm" ),
+                       ("pron", "pron"),
+                       ("prep", "prep"),
+                       ("verb", "verb")]
 type Word = String
 type Tag = String
 
@@ -187,20 +183,7 @@ data UContext =
 
 -- a tagger contains initial statistics, default tag, and set of patches/rules
 type Tagger = ((Count,Tag),[Rule String])
-{-
-readCount' file = do
-    text' <- readFile' file
-    --let text = map (line . words) $ lines text'
-    return $ foldl (\mp ln -> addLine mp (line . words $ ln)) Map.empty $ lines text'
 
-addLine wmap ((word,tag),count) = 
-    case word `Map.member` wmap of
-        True ->  let tmap = wmap Map.! word
-                 in Map.insert word (Map.insertWith (+) tag count tmap) wmap
-        False -> Map.insert word (Map.singleton tag count) wmap
-
-line (x:y:z:_) = ((x, newtag y),(read z :: Int))
--}
 newtag x = case Map.lookup x tagmap of
                 Nothing -> defaultTag
                 Just tag -> tag
@@ -382,7 +365,7 @@ applyU' (U t1 c t2) c1 c2 v =
     match (RightWord s) i w = fmap fst (v V.!? (i+1)) == Just s
     match (CurrentWord s) _ w = s == w
     match (Appears   s) i w = s `elem` w
- 
+
 -- Vector-based rule application
 applyV :: Eq a => Rule a -> Vector (Vector (Word,a)) -> Vector (Vector (Word,a))
 applyV r = V.map (applyV' r)
@@ -1562,299 +1545,3 @@ readUptoHundred = readDeca +++ readTens +++ readDigit
 readNumeral :: ReadP (Number)
 readNumeral = readTrillion +++ readBillion +++ readMillion +++ readThousand +++ readHundred +++ readDeca +++ readTens +++ readDigit
 
-numbers x y = do
-    text <- readFile x
-    let tlines = map strip $ lines text
-    let nlines = filter (\x -> (not . isNumber $ (filter isAlpha x))) tlines
-    writeFile y (unlines nlines)
-
-{-
--- OLD CODE
--- safeSlice :: check bounds and yield a subvector within the bounds of the given vector
-safeSlice :: Int -> Int -> Vector a -> Vector a
-safeSlice start len v | (start+len) < 1 = V.empty
-safeSlice start len v | start < 0 = safeSlice 0 (start+len) v
-safeSlice start len v | (start+len) > V.length v = safeSlice (start) (V.length v - start) v
-safeSlice start len v = V.slice start len v
-
-
-applyV' (R t1 (OneW i word') t2) v = 
-    V.imap (\i' (w,a) -> if a == t1 && (fmap fst (v V.!? (i'+i)) == Just word') then (w,t2) else (w,a)) v
-applyV' (R t1 (One i tag) t2) v = 
-    V.imap (\i' (w,a) -> if a == t1 && (fmap snd (v V.!? (i'+i)) == Just tag) then (w,t2) else (w,a)) v
-applyV' (R t1 (Both tag1 tag2) t2) v = 
-    V.imap (\i' (w,a) -> if a == t1 && (fmap snd (v V.!? (i'-1)) == Just tag1) && (fmap snd (v V.!? (i'+1)) == Just tag2) then (w,t2) else (w,a)) v
-applyV' (R t1 (BothW word1 i word2) t2) v = 
-    V.imap (\i' (w,a) -> if a == t1 && (w == word1) && (fmap fst (v V.!? (i'+i)) == Just word2) then (w,t2) else (w,a)) v
-applyV' (R t1 (BothT word1 i tag2) t2) v = 
-    V.imap (\i' (w,a) -> if a == t1 && (w == word1) && (fmap snd (v V.!? (i'+i)) == Just tag2) then (w,t2) else (w,a)) v
-applyV' (R t1 (Any i tag) t2) v | i < 0 = 
-    V.imap (\i' (w,a) -> if i' >= (abs i) && a == t1 && V.any (==tag) (V.map snd  (safeSlice (i'+i) (abs i) v))
-                           then (w,t2)
-                           else (w,a)  ) v
-applyV' (R t1 (Any i tag) t2) v = 
-    V.imap (\i' (w,a) -> if a == t1 && V.any (==tag) (V.map snd (safeSlice (i'+1) i v))
-                           then (w,t2)
-                           else (w,a)  ) v
-applyV' (R t1 (All i tag) t2) v | i < 0 = 
-    V.imap (\i' (w,a) -> if i' >= (abs i) && a == t1 && tag == (V.map snd (safeSlice (i'+i) (abs i) v))
-                           then (w,t2)
-                           else (w,a)  ) v
-    --where tag' = V.map Just tag
-applyV' (R t1 (All i tag) t2) v = 
-    V.imap (\i' (w,a) -> if a == t1 && tag == (V.map snd (safeSlice (i'+1) i v))
-                           then (w,t2)
-                           else (w,a)  ) v
-    --where tag' = map Just tag
-
-
---score' (R t1 (One i tag) t2) v = 
---    V.sum $ V.imap (\i' a -> if ptag a == t1 && (fmap ptag (v V.!? (i'+i)) == Just tag)
---                               then rtag a == t2 ? 1 $ -1
---                               else 0) v
---score' (R t1 (Any i tag) t2) v | i < 0 = 
---    V.sum $ V.imap (\i' a -> if ptag a == t1 && i' >= (abs i) && V.any (==tag) (V.map ptag  (safeSlice (i'+i) (abs i) v))
---                                    then rtag a == t2 ? 1 $ -1
---                                    else 0 ) v
---score' (R t1 (Any i tag) t2) v = 
---    V.sum $ V.imap (\i' a -> if ptag a == t1 && V.any (==tag) (V.map ptag $ safeSlice (i'+1) i v)
---                                    then rtag a == t2 ? 1 $ -1
---                                    else 0 ) v
---score' (R t1 (All i tag) t2) v | i < 0 = 
---    V.sum $ V.imap (\i' a -> if ptag a == t1 && i' >= (abs i) && (V.fromList tag) == (V.map ptag  (safeSlice (i'+i) (abs i) v))
---                                    then rtag a == t2 ? 1 $ -1
---                                    else 0 ) v
---score' (R t1 (All i tag) t2) v = 
---    V.sum $ V.imap (\i' a -> if ptag a == t1 && (V.fromList tag) == (V.map ptag  (safeSlice (i'+1) i v))
---                                    then rtag a == t2 ? 1 $ -1
---                                    else 0 ) v
---score' (R t1 (BothW word1 i word2) t2) v = 
---    V.sum $ V.imap (\i' a -> if ptag a == t1 && (word (v V.! i') == word1) && (fmap word (v V.!? (i'+i)) == Just word2)
---                               then rtag a == t2 ? 1 $ -1
---                               else 0) v
---score' (R t1 (BothT word1 i tag1) t2) v = 
---    V.sum $ V.imap (\i' a -> if ptag a == t1 && (word (v V.! i') == word1) && (fmap ptag (v V.!? (i'+i)) == Just tag1)
---                               then rtag a == t2 ? 1 $ -1
---                               else 0) v
-
-makeRules :: Ord a => Vector (Vector (Unit a)) -> [Rule a]
-makeRules corpus = 
-    let indices = errorIndices corpus
-        one  = [R t1 (One  i (ptag ((corpus V.! l) V.! (w+i)))) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [0,1,2,-1,-2,3,-3],
-                      isJust ((corpus V.! l) V.!? (w+i))]
-        onew = [R t1 (OneW i (word ((corpus V.! l) V.! (w+i)))) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [0,1,-1,2,-2],
-                      isJust ((corpus V.! l) V.!? (w+i))]
-        both = [R t1 (Both (ptag ((corpus V.! l) V.! (w-1))) (ptag ((corpus V.! l) V.! (w+1)))  ) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      w > 0,
-                      w < (V.length $ corpus V.! l) - 1 ]
-        any1 = [R t1 (Any  i (ptag tag) ) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [-2,-3],
-                      (w + i + (abs i)) >= 1,
-                      tag <- V.toList (safeSlice (w+i) (abs i) (corpus V.! l)) ]
-        any2 = [R t1 (Any  i (ptag tag) ) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [2,3],
-                      (w + 1 + i) >= 1,
-                      tag <- V.toList (safeSlice (w+1) i (corpus V.! l)) ]
-        all1 = [R t1 (All  i (map ptag $ V.toList (V.unsafeSlice (w+i) (abs i) (corpus V.! l))) ) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [-2,-3],
-                      w >= (abs i) ]
-        all2 = [R t1 (All  i (map ptag $ V.toList (V.unsafeSlice (w+1) i (corpus V.! l))) ) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [2,3],
-                      (w + 1 + i) <= (V.length $ corpus V.! l) ]
-        bothw =[R t1 (BothW (word ((corpus V.! l) V.! w)) i (word ((corpus V.! l) V.! (w+i)))  ) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [1,-1],
-                      w >= (i<0 ? (abs i) $ 0),
-                      w < (i>0 ? (V.length $ corpus V.! l) - i $ (V.length $ corpus V.! l) ) ]
-        botht =[R t1 (BothT (word ((corpus V.! l) V.! w)) i (ptag ((corpus V.! l) V.! (w+i)))  ) t2
-                    | ((t1,t2),indexes) <- indices,
-                      (l,w) <- indexes,
-                      i <- [1,-1],
-                      w >= (i<0 ? (abs i) $ 0),
-                      w < (i>0 ? (V.length $ corpus V.! l) - i $ (V.length $ corpus V.! l) ) ]
-    in nub $ (onew `par` one)
-             ++ (any1 `par` onew)
-             ++ (any2 `par` any1)
-             ++ (all1 `par` any2)
-             ++ (all2 `par` all1)
-             ++ (both `par` all2)
-             ++ (bothw `par` both)
-             ++ (botht `par` bothw)
-             ++ botht
-
--- | Faster application of rules on int-type tags
-applyInt :: Eq a => Rule a -> [[a]] -> [[a]]
-applyInt r corpus = map (applyInt' r) corpus
-
-applyInt' _ [] = []
-applyInt' r@(R t1 (One i tag) t2) ys
-    = case (i < 0) of
-      True  ->
-        take i' ys ++
-        (map (\(x,y) -> y==t1 && x==tag ? t2 $ y) $ zip ys (drop i' ys))
-      False ->
-        (map (\(x,y) -> y==t1 && x==tag ? t2 $ y)
-                  $ zip (drop i' ys) (take (len - i') ys))
-        ++ drop (len - i') ys
-    where i' = abs i
-          len = length ys
-applyInt' r@(R t1 (Any i tag) t2) ys
-    = case (i < 0) of
-      True  ->
-        take i' ys
-        ++ (map (\(xs,y) -> y==t1 && any (==tag) xs ? t2 $ y) $ zip (ngrams ys i') (drop i' ys) )
-      False ->
-        (map (\(xs,y) -> y==t1 && any (==tag) xs ? t2 $ y) $ zip (ngrams (tail ys) i') (take (len - i') ys))
-        ++ drop (len - i') ys
-    where i' = abs i
-          len = length ys
-applyInt' r@(R t1 (All i tags) t2) ys
-    = case (i < 0) of
-      True  ->
-        take i' ys
-        ++ (map (\(xs,y) -> y==t1 && tags == xs ? t2 $ y) $ zip (ngrams ys i') (drop i' ys) )
-      False ->
-        (map (\(xs,y) -> y==t1 && tags == xs ? t2 $ y) $ zip (ngrams (tail ys) i') (take (len - i') ys))
-        ++ drop (len - i') ys
-    where i' = abs i
-          len = length ys
-
--- | Apply a transform on the given corpus,
--- abort if the error rate exceeds the given errors
-applyRule :: Eq a => Rule a -> Corpus a -> Corpus a
-applyRule (R _ (One i _) _) corpus | i == 0 = corpus
-applyRule (R _ (Any i _) _) corpus | i == 0 = corpus
-applyRule (R _ (All i _) _) corpus | i == 0 = corpus
-applyRule _ [] = []
-applyRule r (line:corpus)
-    = (toList (applyRule' r (fromList line))) : applyRule r corpus
-    
-applyRule' _ z@(Zip xs []) = z
-applyRule' r@(R t1 (One i tag) t2) z@(Zip xs ((w,t):ys))
-    = case (i < 0) of
-      True  -> length xs <= (abs i)
-                ? applyRule' r (right z)
-                $ applyRule' r (t==t1 && tag == (snd . head $ drop (abs i) xs)
-                                 ? Zip ((w,t2):xs) ys
-                                 $ right z)
-      False -> length ys <= i
-                  ? applyRule' r (right z)
-                  $ applyRule' r (t==t1 && tag == (snd . head $ drop i ys)
-                                   ? Zip ((w,t2):xs) ys
-                                   $ right z)
-applyRule' r@(R t1 (Any i tag) t2) z@(Zip xs ((w,t):ys))
-    = case (i < 0) of
-      True  -> null xs
-                ? applyRule' r (right z)
-                $ applyRule' r (t==t1 && any (\x -> snd x == tag) (take (abs i) xs)
-                                 ? Zip ((w,t2):xs) ys
-                                 $ right z)
-      False -> null ys
-                  ? applyRule' r (right z)
-                  $ applyRule' r (t==t1 && any (\x -> snd x == tag) (take (abs i) ys)
-                                   ? Zip ((w,t2):xs) ys
-                                   $ right z)
-applyRule' r@(R t1 (All i tags) t2) z@(Zip xs ((w,t):ys))
-    = case (i < 0) of
-      True  -> length xs <= (abs i)
-                ? applyRule' r (right z)
-                $ applyRule' r (t==t1 && tags == (map snd $ take (abs i) xs)
-                                 ? Zip ((w,t2):xs) ys
-                                 $ right z)
-      False -> length ys <= i
-                  ? applyRule' r (right z)
-                  $ applyRule' r (t==t1 && tags == (map snd $ take (abs i) ys)
-                                   ? Zip ((w,t2):xs) ys
-                                   $ right z)
-
-generateContexts :: Range -> [Word] -> [a] -> [Context a]
-generateContexts (from',to') words' tags= 
-    let from = abs from'
-        to = abs to'
-        onewf = [OneW (negate i) w | w <- words', i <- [1..from]]
-        onewt = [OneW i w | w <- words', i <- [1..to]]
-        onef = [One (negate i) t | t <- tags, i <- [1..from]]
-        onet = [One i t | t <- tags, i <- [1..to]]
-        anyf = [Any (negate i) t | t <- tags, i <- [2..from]]
-        anyt = [Any i t | t <- tags, i <- [2..to]]
-        allf = [All (-1) t | i <- [2..from], t <- perm tags i]
-        allt = [All   1  t | i <- [2..to],   t <- perm tags i]
-    in  onef ++ onet ++ onewf ++ onewt
-         ++ anyf ++ anyt ++ allf ++ allt
-
-perm :: [a] -> Int -> [[a]]
-perm [] _ = []
-perm xs i
-    | i <  0 = []
-    | i == 0 = [[]]
-    | i == 1 = [[x] | x <- xs]
-    | otherwise = [(x:y) | x <- xs, y <- perm xs (i-1)]
-
--- generate all rules for given tags
-generateRules :: Eq a => Range -> [Word] -> [a] -> [Rule a]
-generateRules range words tags =
-    [R t1 rule t2
-            | t1 <- tags,
-              t2 <- tags,
-              t1 /= t2,
-              rule <- generateContexts range words tags]
-
-
-type Corpus a = [[(Word,a)]]
-
-findPatches' :: IntMap Tag
-                -> Vector (Vector (Word,Int))
-                -> Vector (Vector (Word,Int))
-                -> Vector (Int,Int)
-                -> [Rule Int] -- list of all rules
-                -> [Rule Int] -- collect the patches
-                -> IO [Rule Int]
-findPatches' imap _ _ i _ patches | length patches >= maxRules
-    = return (trace (show (intToTag imap $ head patches) ++ ", " ++ show (V.length i)) patches)
-findPatches' imap pcorpus corpus errors rules patches = do
-    let pairs = nub . V.toList $ errors 
-    let allrules = filter (\(R a _ b) -> (a, b) `elem` pairs) rules
-    --putStrLn $ "Rules to test: " ++ show (length allrules)
-    b <- nextTagPatch pcorpus corpus allrules
-    case b `seq` b of
-        Nothing -> return patches
-        Just (p,(c,i)) ->
-            case (V.length i < V.length errors) of
-              True -> findPatches' imap  pcorpus  c
-                                   (trace (show (intToTag imap p) ++ ", " ++ show (V.length i)) i)
-                                   rules (p:patches)
-              False -> return patches
-
-nextTagPatch :: Eq a => Vector (Vector (Word,a)) -> Vector (Vector (Word,a)) -> [Rule a]
-             -> IO (Maybe (Rule a, (Vector (Vector (Word,a)),
-                                    Vector (a,a)) ) )
-nextTagPatch pcorpus corpus rules =
-          (\x -> if null x
-                    then return Nothing
-                    else return $ Just $ minimumBy (compare `on` (V.length . snd . snd)) x
-          )
-        . parMap rpar (\(x,y) ->
-                        (x, (y, V.map (snd *** snd) . V.filter comp $ V.zip (join y) (join pcorpus) )))
-        . parMap rpar
-            (\rule -> (rule, applyV rule corpus))
-        $ rules
-    where comp (x,y) = snd x /= snd y
-
--}
