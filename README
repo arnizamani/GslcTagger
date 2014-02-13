@@ -1,3 +1,8 @@
-Download the latest documentation of this project here:
+GslcTagger is an automatic parts-of-speech tagger for transcribed speech data.
+It is a rule-based tagger based on the design of Brill tagger, but specialized
+for speech data.
+
+GslcTagger is written comletely in Haskell. The documentation is available
+in the following pdf file:
 
 http://scciil.gu.se/digitalAssets/1469/1469737_gslctaggerreport-nitsamani.pdf
